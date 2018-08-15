@@ -294,15 +294,21 @@ var $builtinmodule = function (name) {
     });
 
     var MAX_SAFE_INTEGER_FACTORIAL = 18; // 19! > Number.MAX_SAFE_INTEGER
+    var CACHED_NUMBERS = [];
     mod.factorial = new Sk.builtin.func(function (x) {
         Sk.builtin.pyCheckArgs("factorial", arguments, 1, 1);
         Sk.builtin.pyCheckType("x", "number", Sk.builtin.checkNumber(x));
+        var i = 1, r = 2;
 
         x = Math.floor(Sk.builtin.asnum$(x));
-        var r = 1;
-        for (var i = 2; i <= x && i <= MAX_SAFE_INTEGER_FACTORIAL; i++) {
-            r *= i;
+        if(x<=MAX_SAFE_INTEGER_FACTORIAL ||
+              CACHED_NUMBERS.length==0){
+          r = 1;
+          for (i = 2; i <= x && i <= MAX_SAFE_INTEGER_FACTORIAL; i++) {
+              r *= i;
+          }
         }
+        i--; // undo the last (rejected) increment
         if(x<=MAX_SAFE_INTEGER_FACTORIAL){
             return new Sk.builtin.int_(r);
         }else{
@@ -317,11 +323,43 @@ var $builtinmodule = function (name) {
               return new Sk.builtin.biginteger(number);
             }
 
+            // results are big integers from here on out
             r = bigup(r);
-            for (var i = MAX_SAFE_INTEGER_FACTORIAL+1; i <= x; i++) {
+
+            if(CACHED_NUMBERS.length==0){
+              print("special caching", "i", i, "r", r.toString());
+              CACHED_NUMBERS.push([i, r]);
+            }
+
+            // console.log("before looking in cache", "i", i, "r", r.toString()
+            //           ,"CACHED_NUMBERS.length", CACHED_NUMBERS.length,
+            //           "x", x);
+
+            // Find the closest cached number
+            for(var j=0;j<CACHED_NUMBERS.length && i<=x;j++){
+              var tmp_pair, tmp_i, tmp_r;
+              tmp_pair = CACHED_NUMBERS[j];
+              if( x>=tmp_pair[0] ){
+                i = tmp_pair[0];
+                r = tmp_pair[1];
+              }
+            }
+
+//            print("found in cache", "i", i, "r", r.toString());
+
+            for (i+=1; i <= x; i++) {
                 var i_bigup = bigup(i);
                 r = r.multiply(i_bigup);
+                // Why does this work? goo.gl/D3DnPB
+                var is_power_of_2 = i && (i & (i - 1)) === 0;
+                // console.log("i", i, "r", r.toString());
+                if(is_power_of_2){
+                  // console.log("main caching", "i", i, "r", r.toString());
+                  CACHED_NUMBERS.push([i, r])
+                }
             }
+            // console.log("x", x, "returning", r.toString());
+            print(CACHED_NUMBERS.length)
             return new Sk.builtin.lng(r);
         }
     });
